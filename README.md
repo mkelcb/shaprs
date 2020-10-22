@@ -7,7 +7,9 @@ Installation:
 >library("shaPRS")
 ## Step 1: adjust your summary statistics, run:
 >inputDataLoc <- system.file("extdata", "shapersToydata.txt", package = "shaPRS")
+
 >inputData= read.table(inputDataLoc, header = T)
+
 >results = shaPRS_adjust(inputData, thresholds=c(0.5,0.99))
 
 - the results object will have two lists,'lFDRTable', which provides the lFDR estimates for each SNP and 'hardThresholds' which itself is a list of the SNPs that found to be heterogeneous at the thresholds 0.5 and 0.99. 
@@ -19,11 +21,17 @@ Installation:
 
 ## Step 2: Blend summary statistics according to a continuous weighting scheme, run:
 >subphenoLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+
 >CombinedPhenoLoc <- system.file("extdata", "Combined_sumstats", package = "shaPRS")
+
 >blendFactorLoc <- system.file("extdata", "myOutput_SNP_lFDR", package = "shaPRS")
+
 >subpheno= read.table(subphenoLoc, header = T)
+
 >CombinedPheno= read.table(CombinedPhenoLoc, header = T)
+
 >blendingFactors= read.table(blendFactorLoc, header = F)
+
 >blendedSumstats = shaPRS_blend(subpheno, CombinedPheno, blendingFactors)
 
 - 'blendedSumstats' is an LDPred formatted summary statistics file
