@@ -3,6 +3,7 @@ Leveraging shared genetic effects to improve  genetic risk prediction for relate
 
 Installation:
 >install_github("mkelcb/shaprs")
+
 >library("shaPRS")
 ## Step 1: adjust your summary statistics, run:
 >inputDataLoc <- system.file("extdata", "shapersToydata.txt", package = "shaPRS")
