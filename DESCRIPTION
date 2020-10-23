@@ -1,6 +1,6 @@
 Package: shaPRS
 Title: shaPRS Polygenic Score Tool
-Version: 1.01
+Version: 1.02
 Authors@R: 
     c(person(given = "Martin",
            family = "Kelemen",

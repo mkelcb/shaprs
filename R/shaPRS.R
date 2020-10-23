@@ -6,7 +6,7 @@
 #' (3) lists SNPs that are fail the heterogeneity test at specified thresholds (optional)
 #'
 #' @param inputData summary statistics table that has header with the following columns: SNP	CHR	BP	Beta_A	SE_A	Beta_B	SE_B
-#' @param rho overlap between studies. 0 for no overlap and 1 for complete overlap. default: 0
+#' @param rho estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()
 #' @param thresholds vector of thresholds to be used to create list of SNPs (default empty)
 #' @return returns object with two fields, (1) lFDRTable: a 2 column file with the following signature SNPID lFDR (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 #'
@@ -40,18 +40,63 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
       currentThreshold=thresholds[i]
       sigSNPs = lFDRTable[which(lFDRTable$lfdr_qvals <currentThreshold),]
 
+      # SNPs which are heterogeneous, will be sourced from the subphenotpye
+      CompositePheno = inputData # start from the composite pheno
       hard_threshold_results[[i]] = sigSNPs$inputData.SNP
     }
   }
+
+
+
   results <- list("lFDRTable" = lFDRTable, "hardThresholds" = hard_threshold_results)
   return(results)
 }
 
 
+#' Composite shaPRS: produce summary statistics according to hard thresholds
+#'
+#' Loops through a list of hard thresholds, and swaps between the Combined and Subphenotype estimates
+#' based on the list of SNPs found to be heterogenous for a given threshold. This process would swap in
+#' the subphenotype estimates for the SNPs found to be heterogeneous.
+#'
+#' @param subpheno  Subphenotype LDPred formatted GWAS summary statistics table  that has header with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
+#' @param CombinedPheno Combined phenotype LDPred formatted GWAS summary statistics table, same signature
+#' @param hard_threshold_results a list of hard thresholds, in the format produced by shaPRS_adjust()
+#' @return returns a list of LDPred formatted summary statistics tables, one for each threshold
+#'
+#' @examples
+#' inputDataLoc <- system.file("extdata", "shapersToydata.txt", package = "shaPRS")
+#' inputData= read.table(inputDataLoc, header = TRUE)
+#' results = shaPRS_adjust(inputData, thresholds=c(0.5,0.99))
+#' subphenoLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+#' CombinedPhenoLoc <- system.file("extdata", "Combined_sumstats", package = "shaPRS")
+#' subpheno= read.table(subphenoLoc, header = TRUE)
+#' CombinedPheno= read.table(CombinedPhenoLoc, header = TRUE)
+#' CompositeSumstats = shaPRS_composite(subpheno, CombinedPheno, results$hardThresholds)
+#'
+#' @export
+shaPRS_composite = function(subpheno, CombinedPheno, hard_threshold_results) {
+
+  allCompositeResults= list()
+  for (i in 1:length(hard_threshold_results)) {
+    heterogeneous_SNPs = hard_threshold_results[[i]]
+
+    # SNPs which are heterogeneous, will be sourced from the subphenotpye
+    CompositePheno = CombinedPheno # start by duplicating the combined
+
+    subphenoIndices = match(heterogeneous_SNPs,subpheno$SNP) # find the indices of the SNPs to be swapped
+    swappedSNPs = subpheno[subphenoIndices,]
+    CompositePheno[subphenoIndices,] = subpheno[subphenoIndices,]
+
+    allCompositeResults[[i]] = CompositePheno
+  }
+
+  return(allCompositeResults)
+}
 
 
 
-#' Blend summary statistics according to a continuous weighting scheme
+#' Blended shaPRS: produce summary statistics according to a continuous weighting scheme
 #'
 #' This function continuously blends the sub-phenotype and the combined phenotype summary statistics
 #' and generates an LDPred formatted table.
@@ -101,3 +146,31 @@ shaPRS_blend = function(subpheno, CombinedPheno, blendingFactors) {
 
   return(blendedSumstats)
 }
+
+#' Calculate rho to be used in shaPRS_adjust()
+#'
+#' Convenience function to estimate the correlation between  two studies with overlapping controls
+#' for more details see:
+#' Lin et al. 'Meta-Analysis of Genome-wide Association Studies with Overlapping Subjects' (2009
+#' ncbi.nlm.nih.gov/pmc/articles/PMC2790578
+#'
+#' @param nkl0 number of controls overlapping between studies
+#' @param nk1 number of cases in study k
+#' @param nk0 number of controls in study k
+#' @param nl1 number of cases in study l
+#' @param nl0 number of controls in study l
+#' @return returns real value of the approximate correlation
+#'
+#' @examples
+#' rho = shaPRS_rho(nkl0 = 9492,nk1 = 3810, nk0= 9492, nl1= 3765,nl0= 9492)
+#'
+#' @export
+shaPRS_rho = function(nkl0,nk1, nk0, nl1,nl0) {
+  nk=nk1+nk0 # total number indis in k
+  nl= nl1+nl0 # total number of indis in l
+  approx_cor= (nkl0 * sqrt(nk1*nl1 / (nk0*nl0) )   ) / sqrt(nk*nl)
+  return(approx_cor )
+}
+
+
+

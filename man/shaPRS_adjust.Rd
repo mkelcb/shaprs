@@ -9,7 +9,7 @@ shaPRS_adjust(inputData, rho = 0, thresholds = vector())
 \arguments{
 \item{inputData}{summary statistics table that has header with the following columns: SNP    CHR    BP    Beta_A    SE_A    Beta_B    SE_B}
 
-\item{rho}{overlap between studies. 0 for no overlap and 1 for complete overlap. default: 0}
+\item{rho}{estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()}
 
 \item{thresholds}{vector of thresholds to be used to create list of SNPs (default empty)}
 }

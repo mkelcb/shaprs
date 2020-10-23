@@ -2,6 +2,8 @@
 
 export(shaPRS_adjust)
 export(shaPRS_blend)
+export(shaPRS_composite)
+export(shaPRS_rho)
 importFrom(stats,cor)
 importFrom(stats,na.omit)
 importFrom(stats,pchisq)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/shaPRS.R
 \name{shaPRS_blend}
 \alias{shaPRS_blend}
-\title{Blend summary statistics according to a continuous weighting scheme}
+\title{Blended shaPRS: produce summary statistics according to a continuous weighting scheme}
 \usage{
 shaPRS_blend(subpheno, CombinedPheno, blendingFactors)
 }
