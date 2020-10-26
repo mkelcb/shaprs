@@ -8,7 +8,7 @@
 #' @param inputData summary statistics table that has header with the following columns: SNP	CHR	BP	Beta_A	SE_A	Beta_B	SE_B
 #' @param rho estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()
 #' @param thresholds vector of thresholds to be used to create list of SNPs (default empty)
-#' @return returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNPID lFDR Q_pvals (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
+#' @return returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNPID lFDR Q_vals (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 #'
 #' @importFrom stats na.omit pchisq pnorm cor
 #'
@@ -22,16 +22,16 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
 
   # 1. Cochran's Q-test formula: from 'Meta-Analysis of Genome-wide Association Studies with Overlapping Subjects' ncbi.nlm.nih.gov/pmc/articles/PMC2790578/
   Vhat = (inputData$SE_A^2 + inputData$SE_B^2 - 2 * rho * inputData$SE_A * inputData$SE_B)
-  Q_adjusted = (inputData$Beta_A - inputData$Beta_B)^2/ Vhat
+  Q_vals = (inputData$Beta_A - inputData$Beta_B)^2/ Vhat
   df=2-1 # degrees of freedom, 2 studies -1
-  Q_pvals = pchisq(Q_adjusted, df = df, lower.tail = F)
+  Q_pvals = pchisq(Q_vals, df = df, lower.tail = F)
 
   # 2. lFDR estimation
   lfdr_obj = qvalue::qvalue(p = Q_pvals)
   lfdr_qvals <- lfdr_obj$lfdr
 
   # 3. prepare table of lFDR values for each SNP
-  lFDRTable <- data.frame(inputData$SNP, lfdr_qvals, Q_pvals)
+  lFDRTable <- data.frame(inputData$SNP, lfdr_qvals, Q_vals)
 
   # 4. Create list for each threshold of SNPs that fail the heterogeneity test at the specified thresholds
   hard_threshold_results = list()

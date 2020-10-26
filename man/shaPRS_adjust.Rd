@@ -14,7 +14,7 @@ shaPRS_adjust(inputData, rho = 0, thresholds = vector())
 \item{thresholds}{vector of thresholds to be used to create list of SNPs (default empty)}
 }
 \value{
-returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNPID lFDR Q_pvals (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
+returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNPID lFDR Q_vals (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 }
 \description{
 it performs:
