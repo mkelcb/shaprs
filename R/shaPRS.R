@@ -402,6 +402,15 @@ RemoveNonNumerics = function(subpheno) {
 #' # generate the blended LD matrix
 #' cormat = LDRefBlend(pop1LDmatrix,pop2LDmatrix, sumstatsData)
 #'
+#' # create a new map file that matches the SNPs common to both LD panels
+#' map_rds_new = pop1_map_rds[which(pop1_map_rds$chr == chromNum),]
+#' map_rds_new2 = map_rds_new[which(map_rds_new$rsid %in% sumstatsData$rsid),]
+#'
+#' # save the new LD matrix to a location of your choice
+#' # saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
+#'
+#' # save its Map file too
+#' #saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
 #'
 #' @export
 LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
