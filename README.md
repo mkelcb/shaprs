@@ -40,6 +40,7 @@ That's it. You may now then use this in your favourite PRS generation tool.
 
 read SNP map files ( same toy data for the example)
 >pop1_map_rds = readRDS(file = system.file("extdata", "my_data.rds", package = "shaPRS") )
+
 >pop2_map_rds = readRDS(file = system.file("extdata", "my_data2.rds", package = "shaPRS") )
 
 use chrom 21 as an example
@@ -47,16 +48,22 @@ use chrom 21 as an example
 
 load the two chromosomes from each population ( same toy data for the example)
 >pop1LDmatrix = readRDS(file = system.file("extdata", "LDref.rds", package = "shaPRS") )
+
 >pop2LDmatrix = readRDS(file = system.file("extdata", "LDref2.rds", package = "shaPRS") )
 
 
 2. grab the RSids from the map for the SNPS on this chrom,
 each LD mat has a potentiall different subset of SNPs
 this is guaranteed to be the same order as the pop1LDmatrix
+
 >pop1_chrom_SNPs = pop1_map_rds[ which(pop1_map_rds$chr == chromNum),]
+
 this is guaranteed to be the same order as the pop2LDmatrix
+
 >pop2_chrom_SNPs = pop2_map_rds[ which(pop2_map_rds$chr == chromNum),]
+
 >pop1_chrom_SNPs$pop1_id = 1:nrow(pop1_chrom_SNPs)
+
 >pop2_chrom_SNPs$pop2_id = 1:nrow(pop2_chrom_SNPs)
 
 
@@ -78,19 +85,24 @@ merge sumstats with common LD map data
 
 remove duplicates
 >sumstatsData = sumstatsData[ !duplicated(sumstatsData$rsid) ,]
+
 use the effect alleles for the sumstats data with the effect allele of the LD mat
 as we are aligning the LD mats against each other, not against the summary stats
 we only use the lFDR /SE from the sumstats,
 which are directionless, so those dont need to be aligned
+
 >sumstatsData$A1.x =sumstatsData$a1.x
+
 >sumstatsData$A1.y =sumstatsData$a1.y
 
 make sure the sumstats is ordered the same way as the LD matrix:
 >sumstatsData = sumstatsData[order(sumstatsData$pop1_id), ]
-it doesn't matter which matrix to use to order the sumstats as they are the same
+
+(it doesn't matter which matrix to use to order the sumstats as they are the same)
 
 subset the LD matrices to the SNPs we actualy have
 >pop1LDmatrix = pop1LDmatrix[sumstatsData$pop1_id,sumstatsData$pop1_id]
+
 >pop2LDmatrix = pop2LDmatrix[sumstatsData$pop2_id,sumstatsData$pop2_id]
 
 generate the blended LD matrix
@@ -98,12 +110,15 @@ generate the blended LD matrix
 
 create a new map file that matches the SNPs common to both LD panels
 >map_rds_new = pop1_map_rds[which(pop1_map_rds$chr == chromNum),]
+
 >map_rds_new2 = map_rds_new[which(map_rds_new$rsid %in% sumstatsData$rsid),] 
 
 save the new LD matrix to a location of your choice
+
 saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
 
 save its Map file too
+
 saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
 
-- the cormat is a 29x29 dense matrix of SNP-SNP correlations, which are saved to a location of your choice, together with its map file.
+- The cormat is a 29x29 dense matrix of SNP-SNP correlations, which are saved to a location of your choice, together with its map file.
