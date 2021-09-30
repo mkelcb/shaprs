@@ -115,10 +115,10 @@ create a new map file that matches the SNPs common to both LD panels
 
 save the new LD matrix to a location of your choice
 
-saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
+>saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
 
 save its Map file too
 
-saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
+>saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
 
 - The cormat is a 29x29 dense matrix of SNP-SNP correlations, which are saved to a location of your choice, together with its map file.
