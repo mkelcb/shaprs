@@ -7,20 +7,20 @@
 shaPRS_adjust(inputData, rho = 0, thresholds = vector())
 }
 \arguments{
-\item{inputData}{summary statistics table that has header with the following columns: SNP    CHR    BP    Beta_A    SE_A    Beta_B    SE_B}
+\item{inputData}{summary statistics table that has header with the following columns: SNP    CHR    BP    Beta_A    SE_A    A1.x    A2.x    Beta_B    SE_B    A1.y    A2.y}
 
 \item{rho}{estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()}
 
 \item{thresholds}{vector of thresholds to be used to create list of SNPs (default empty)}
 }
 \value{
-returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNPID lFDR Q_vals (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
+returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 }
 \description{
 it performs:
 (1) modified Cochran's Q-test which optionally adjusts for overlapping controls
 (2) lFDR estimation on the p-values from the above Cochran's Q-test
-(3) lists SNPs that are fail the heterogeneity test at specified thresholds (optional)
+(3) lists SNPs that fail the heterogeneity test at specified thresholds (optional)
 }
 \examples{
 inputDataLoc <- system.file("extdata", "shapersToydata.txt", package = "shaPRS")
