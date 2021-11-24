@@ -23,8 +23,12 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.1
 URL: https://github.com/mkelcb/shaprs
+Depends:
+    qvalue (>= 2.15.0)
 Imports:
-    qvalue,
     Matrix,
     compiler
 Remotes: git::https://github.com/StoreyLab/qvalue.git
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
