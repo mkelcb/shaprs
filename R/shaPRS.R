@@ -46,7 +46,7 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
   Q_pvals = pchisq(Q_vals, df = df, lower.tail = F)
 
   # 2. lFDR estimation
-  lfdr_obj = qvalue::qvalue_truncp(p = Q_pvals)
+  lfdr_obj = qvalue::qvalue(p = Q_pvals)
   lfdr_qvals <- lfdr_obj$lfdr
 
   # 3. prepare table of lFDR values for each SNP
