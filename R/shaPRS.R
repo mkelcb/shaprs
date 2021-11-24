@@ -59,7 +59,7 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
       currentThreshold=thresholds[i]
       sigSNPs = lFDRTable[which(lFDRTable$lfdr_qvals <currentThreshold),]
 
-      # SNPs which are heterogeneous, will be sourced from the subphenotpye
+      # SNPs which are heterogeneous, will be sourced from the proximaltpye
       CompositePheno = inputData # start from the composite pheno
       hard_threshold_results[[i]] = sigSNPs$inputData.SNP
     }
@@ -83,8 +83,8 @@ flipStrand = function(alleles) {
 }
 
 
-# inputData = subphenoA_B
-#inputData = subpheno_otherPheno_blending
+# inputData = proximal_adjunct
+#inputData = adjunctPheno_blending
 #inputData = sumstatsDataAll
 
 #' Aligns strands between 2 summary statistics data
@@ -115,7 +115,10 @@ alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.
   inputData$A2.y_flipped =  flipStrand(inputData[,A2.y])
   # if 2nd sumstats CAN be matched to 1st, IE
   #                                                                                 regular match                                                                                                                         reverse match                                                                                                    flipped match                                                                                                    reverse flipped match
-  matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |  as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y]) | as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped)  | as.character( inputData[,A1.x]) == as.character(inputData$A2.y_flipped) &  as.character(inputData[,A2.x]) == as.character(inputData$A1.y_flipped) )
+  matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |
+                         as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y]) |
+                         as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped)  |
+                         as.character( inputData[,A1.x]) == as.character(inputData$A2.y_flipped) &  as.character(inputData[,A2.x]) == as.character(inputData$A1.y_flipped) )
   print(paste0("matched ", length(matchedIndices), " out of ", nrow(inputData), " variants"))
   # as there may be non-SNPs, we need to cast them as character
 
@@ -144,79 +147,79 @@ alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.
 #' This function continuously blends the two sub-phenotype statistics
 #' and generates an LDPred formatted table.
 #'
-#' @param subpheno  Subphenotype LDPred formatted GWAS summary statistics table  that has header with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
-#' @param subpheno_other dataframe for other subpheno of the same signature
+#' @param proximal  Proximal LDPred formatted GWAS summary statistics table  that has header with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
+#' @param adjunct dataframe for adjunct dataset of the same signature
 #' @param blendingFactors a 3 column table of: SNP lFDR Qval, (produced by shaPRS_adjust)
-#' @param rho (optional) overlap between studies
+#' @param rho (optional) sample overlap between studies
 #' @return returns an LDPred formatted summary statistics table
 #'
 #' @importFrom stats na.omit pchisq pnorm cor
 #'
 #' @examples
-#' subphenoLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
-#' subpheno_otherLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
+#' proximalLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+#' adjunctLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
 #' blendFactorLoc <- system.file("extdata", "myOutput_SNP_lFDR", package = "shaPRS")
-#' subpheno= read.table(subphenoLoc, header = TRUE)
-#' subpheno_other= read.table(subpheno_otherLoc, header = TRUE)
+#' proximal= read.table(proximalLoc, header = TRUE)
+#' adjunct= read.table(adjunctLoc, header = TRUE)
 #' blendingFactors= read.table(blendFactorLoc, header = TRUE)
-#' blendedSumstats = shaPRS_blend_overlap(subpheno, subpheno_other, blendingFactors)
+#' blendedSumstats = shaPRS_blend_overlap(proximal, adjunct, blendingFactors)
 #'
 #' @export
-shaPRS_blend_overlap = function(subpheno, subpheno_other, blendingFactors, rho = 0) {
+shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0) {
   # cast as numeric
-  subpheno = RemoveNonNumerics(subpheno)
-  subpheno_other = RemoveNonNumerics(subpheno_other)
+  proximal = RemoveNonNumerics(proximal)
+  adjunct = RemoveNonNumerics(adjunct)
 
-  # 1.  Merge first the 3 tables together by RSid, so they are always aligned, x = subpheno  and    y = CombinedPheno ( ensure that when we check allele alignment we are comparing the same SNPs
-  subpheno_otherPheno = merge(subpheno,subpheno_other,by.x = "SNP",by.y = "SNP")
-  subpheno_otherPheno_blending = merge(subpheno_otherPheno,blendingFactors, by.x = "SNP", by.y = "SNP")
+  # 1.  Merge first the 3 tables together by RSid, so they are always aligned, x = proximal  and    y = CombinedPheno ( ensure that when we check allele alignment we are comparing the same SNPs
+  adjunctPheno = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")
+  adjunctPheno_blending = merge(adjunctPheno,blendingFactors, by.x = "SNP", by.y = "SNP")
 
 
-  subpheno_otherPheno_blending = alignStrands(subpheno_otherPheno_blending)
+  adjunctPheno_blending = alignStrands(adjunctPheno_blending)
 
   # 2. Align PheB/B alleles
-  misalignedAlleleIndices = which( as.character(subpheno_otherPheno_blending$A1.x) != as.character(subpheno_otherPheno_blending$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
-  subpheno_otherPheno_blending$b.y[misalignedAlleleIndices] = -subpheno_otherPheno_blending$b.y[misalignedAlleleIndices] # flip effects
+  misalignedAlleleIndices = which( as.character(adjunctPheno_blending$A1.x) != as.character(adjunctPheno_blending$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
+  adjunctPheno_blending$b.y[misalignedAlleleIndices] = -adjunctPheno_blending$b.y[misalignedAlleleIndices] # flip effects
   if(length(misalignedAlleleIndices) > 0) message(paste0(length(misalignedAlleleIndices)), " misaligned allele(s) effects were reversed" )
 
   # sanitize each input of NAs
-  subpheno_otherPheno_blending <- na.omit(subpheno_otherPheno_blending) # remove any NAs of SNPs
+  adjunctPheno_blending <- na.omit(adjunctPheno_blending) # remove any NAs of SNPs
 
-  w = subpheno_otherPheno_blending$lFDR
-  tao1 = 1/subpheno_otherPheno_blending$se.x^2
-  tao2 = 1/subpheno_otherPheno_blending$se.y^2
+  w = adjunctPheno_blending$lFDR
+  tao1 = 1/adjunctPheno_blending$se.x^2
+  tao2 = 1/adjunctPheno_blending$se.y^2
 
   # calculate the meta analysis beta coefficients and standard errors
   meta_se = sqrt( (tao1 + tao2 + rho *sqrt(tao1 * tao2) ) / ( (tao1 + tao2)^2 ) ) # when rho ==0, this is identical to sqrt(CovB12), but otherwwise this is different
-  meta_coef = (subpheno_otherPheno_blending$b.x*1/subpheno_otherPheno_blending$se.x^2 + subpheno_otherPheno_blending$b.y* 1/subpheno_otherPheno_blending$se.y^2) / (1/subpheno_otherPheno_blending$se.x^2+ 1/subpheno_otherPheno_blending$se.y^2)
+  meta_coef = (adjunctPheno_blending$b.x*1/adjunctPheno_blending$se.x^2 + adjunctPheno_blending$b.y* 1/adjunctPheno_blending$se.y^2) / (1/adjunctPheno_blending$se.x^2+ 1/adjunctPheno_blending$se.y^2)
 
 
 
-  # 3. Blend the subpheno and CombinedPheno together and create new summary statistics via following logic:
+  # 3. Blend the proximal and CombinedPheno together and create new summary statistics via following logic:
   # Theoretical (Chris's orginal):
   CovB12 =  ( 1 + rho * sqrt(tao2/tao1) ) / (tao1 + tao2)
   blendedSE =  sqrt( (1-w)^2 /tao1 + w^2 * (tao1 +tao2 + rho * sqrt(tao1 * tao2) ) / (tao1 + tao2)^2 + 2 * w*(1-w) * CovB12 )
 
   # Empirical corr
-  #CovB12_empirical = cor(subpheno_otherPheno_blending$b.x,meta_coef)* subpheno_otherPheno_blending$se.x*meta_se
+  #CovB12_empirical = cor(adjunctPheno_blending$b.x,meta_coef)* adjunctPheno_blending$se.x*meta_se
   #blendedSE =  sqrt( (1-w)^2 /tao1 + w^2 * (tao1 +tao2 + rho * sqrt(tao1 * tao2) ) / (tao1 + tao2)^2 + 2 * w*(1-w) * CovB12_empirical )
 
 
 
-  blendedBeta=subpheno_otherPheno_blending$b.x * (1-subpheno_otherPheno_blending$lFDR) + meta_coef * subpheno_otherPheno_blending$lFDR
+  blendedBeta=adjunctPheno_blending$b.x * (1-adjunctPheno_blending$lFDR) + meta_coef * adjunctPheno_blending$lFDR
   blendedp=2*pnorm( abs(blendedBeta)/blendedSE,lower.tail=FALSE)
 
   # also need the combined sample size
-  CombinedN = subpheno_otherPheno_blending$N.x + subpheno_otherPheno_blending$N.y
+  CombinedN = adjunctPheno_blending$N.x + adjunctPheno_blending$N.y
   # 3. create new data frame to store the new summary stats
-  blendedSumstats = data.frame(subpheno_otherPheno_blending$chr.x, subpheno_otherPheno_blending$pos.x, subpheno_otherPheno_blending$SNP, subpheno_otherPheno_blending$A1.x, subpheno_otherPheno_blending$A2.x, subpheno_otherPheno_blending$Freq1.Hapmap.x,
+  blendedSumstats = data.frame(adjunctPheno_blending$chr.x, adjunctPheno_blending$pos.x, adjunctPheno_blending$SNP, adjunctPheno_blending$A1.x, adjunctPheno_blending$A2.x, adjunctPheno_blending$Freq1.Hapmap.x,
                                blendedBeta,
                                blendedSE,
                                blendedp,
-                               round(subpheno_otherPheno_blending$N.x * (1-subpheno_otherPheno_blending$lFDR) + CombinedN * subpheno_otherPheno_blending$lFDR)
+                               round(adjunctPheno_blending$N.x * (1-adjunctPheno_blending$lFDR) + CombinedN * adjunctPheno_blending$lFDR)
   )
-  colnames(blendedSumstats) = colnames(subpheno)
-  blendedSumstats= blendedSumstats[match(subpheno$SNP, blendedSumstats$SNP),]
+  colnames(blendedSumstats) = colnames(proximal)
+  blendedSumstats= blendedSumstats[match(proximal$SNP, blendedSumstats$SNP),]
   blendedSumstats <- na.omit(blendedSumstats) # remove any NAs of SNPs that couldn't be matched
 
   return(blendedSumstats)
@@ -254,39 +257,39 @@ shaPRS_rho = function(nkl0,nk1, nk0, nl1,nl0) {
 #'
 #' Convenience function to produce the combined phenotype estimate if we only have summary stats for phenoA and pheno B
 #'
-#' @param subpheno dataframe for main subpheno
-#' @param subpheno_other dataframe for other subpheno
+#' @param proximal dataframe for main proximal
+#' @param adjunct dataframe for other proximal
 #' @param rho (optional) overlap between studies
 #' @return returns Combinedpheno dataframe that can be plugged into shaPRS_blend or shaPRS_composite
 #'
 #'
 #' @export
-inverse_metaAnalaysis = function(subpheno,subpheno_other, rho = 0) {
+inverse_metaAnalaysis = function(proximal,adjunct, rho = 0) {
 
   # cast as numeric
-  subpheno = RemoveNonNumerics(subpheno)
-  subpheno_other = RemoveNonNumerics(subpheno_other)
+  proximal = RemoveNonNumerics(proximal)
+  adjunct = RemoveNonNumerics(adjunct)
 
-  # 1.  Merge first the tables together by RSid, so they are always aligned, x = subpheno  and    y = subpheno_other ( ensure that when we check allele alignment we are comparing the same SNPs
-  subphenoA_B = merge(subpheno,subpheno_other,by.x = "SNP",by.y = "SNP")
+  # 1.  Merge first the tables together by RSid, so they are always aligned, x = proximal  and    y = adjunct ( ensure that when we check allele alignment we are comparing the same SNPs
+  proximal_adjunct = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")
 
 
-  subphenoA_B = alignStrands(subphenoA_B)
+  proximal_adjunct = alignStrands(proximal_adjunct)
 
   # 2. Align PheB/B alleles
-  misalignedAlleleIndices = which( as.character(subphenoA_B$A1.x) != as.character(subphenoA_B$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
-  subphenoA_B$b.y[misalignedAlleleIndices] = -subphenoA_B$b.y[misalignedAlleleIndices] # flip effects for phe B
+  misalignedAlleleIndices = which( as.character(proximal_adjunct$A1.x) != as.character(proximal_adjunct$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
+  proximal_adjunct$b.y[misalignedAlleleIndices] = -proximal_adjunct$b.y[misalignedAlleleIndices] # flip effects for phe B
   if(length(misalignedAlleleIndices) > 0) message(paste0(length(misalignedAlleleIndices)), " misaligned allele(s) effects were reversed" )
 
 
   # INVERSE VARIANCE FIXED EFFECT META ANALYSIS: https://en.wikipedia.org/wiki/Inverse-variance_weighting
-  meta_coef = (subphenoA_B$b.x*1/subphenoA_B$se.x^2 + subphenoA_B$b.y* 1/subphenoA_B$se.y^2) / (1/subphenoA_B$se.x^2+ 1/subphenoA_B$se.y^2)
+  meta_coef = (proximal_adjunct$b.x*1/proximal_adjunct$se.x^2 + proximal_adjunct$b.y* 1/proximal_adjunct$se.y^2) / (1/proximal_adjunct$se.x^2+ 1/proximal_adjunct$se.y^2)
 
   # no overlap, use simple formula
-  if(rho == 0) { meta_se = sqrt( (subphenoA_B$se.x^(-2) + subphenoA_B$se.y^(-2) )^(-1) ) }
+  if(rho == 0) { meta_se = sqrt( (proximal_adjunct$se.x^(-2) + proximal_adjunct$se.y^(-2) )^(-1) ) }
   else { # there is an overlap, use Chris' updated formula
-    tao1 = 1/subphenoA_B$se.x^2
-    tao2 = 1/subphenoA_B$se.y^2
+    tao1 = 1/proximal_adjunct$se.x^2
+    tao2 = 1/proximal_adjunct$se.y^2
     meta_se = sqrt( (tao1 + tao2 + rho *sqrt(tao1 * tao2) ) / ( (tao1 + tao2)^2 ) )
   }
 
@@ -295,29 +298,29 @@ inverse_metaAnalaysis = function(subpheno,subpheno_other, rho = 0) {
 
 
   # 3. create new data frame to store the new summary stats
-  CombinedPheno = data.frame(subphenoA_B$chr.x, subphenoA_B$pos.x, subphenoA_B$SNP, subphenoA_B$A1.x, subphenoA_B$A2.x, subphenoA_B$Freq1.Hapmap.x,
+  CombinedPheno = data.frame(proximal_adjunct$chr.x, proximal_adjunct$pos.x, proximal_adjunct$SNP, proximal_adjunct$A1.x, proximal_adjunct$A2.x, proximal_adjunct$Freq1.Hapmap.x,
                              meta_coef,
                              meta_se,
                              meta_p,
-                             subphenoA_B$N.x + subphenoA_B$N.y)
+                             proximal_adjunct$N.x + proximal_adjunct$N.y)
 
-  colnames(CombinedPheno) = colnames(subpheno)
-  CombinedPheno= CombinedPheno[match(subpheno$SNP, CombinedPheno$SNP),]
+  colnames(CombinedPheno) = colnames(proximal)
+  CombinedPheno= CombinedPheno[match(proximal$SNP, CombinedPheno$SNP),]
   CombinedPheno <- na.omit(CombinedPheno) # remove any NAs of SNPs that couldn't be matched
 
   return(CombinedPheno)
 }
 
 # helper function that removes and casts all columns that should be numeric as numeric
-RemoveNonNumerics = function(subpheno) {
+RemoveNonNumerics = function(proximal) {
   # remove non numeric data from cols that must be numeric (must cast to 'characer' otherwise R may turn a value eg 0.8249 into a large integer like 8150 on nix systems)
-  subpheno <- subpheno[!is.na(as.numeric(as.character(subpheno$b))),]
-  subpheno <- subpheno[!is.na(as.numeric(as.character(subpheno$se))),]
+  proximal <- proximal[!is.na(as.numeric(as.character(proximal$b))),]
+  proximal <- proximal[!is.na(as.numeric(as.character(proximal$se))),]
 
   # now actually cast them to numeric
-  subpheno$b = as.numeric(as.character(subpheno$b ))
-  subpheno$se = as.numeric(as.character(subpheno$se ))
-  return(subpheno)
+  proximal$b = as.numeric(as.character(proximal$b ))
+  proximal$se = as.numeric(as.character(proximal$se ))
+  return(proximal)
 }
 
 

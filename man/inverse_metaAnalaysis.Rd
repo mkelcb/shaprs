@@ -4,12 +4,12 @@
 \alias{inverse_metaAnalaysis}
 \title{Generic inverse variance meta analysis}
 \usage{
-inverse_metaAnalaysis(subpheno, subpheno_other, rho = 0)
+inverse_metaAnalaysis(proximal, adjunct, rho = 0)
 }
 \arguments{
-\item{subpheno}{dataframe for main subpheno}
+\item{proximal}{dataframe for main proximal}
 
-\item{subpheno_other}{dataframe for other subpheno}
+\item{adjunct}{dataframe for other proximal}
 
 \item{rho}{(optional) overlap between studies}
 }

@@ -29,3 +29,6 @@ Imports:
     Matrix,
     compiler
 Remotes: git::https://github.com/StoreyLab/qvalue.git
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

@@ -4,16 +4,16 @@
 \alias{shaPRS_blend_overlap}
 \title{Blended shaPRS (with overlapping datasets): produce summary statistics according to a continuous weighting scheme}
 \usage{
-shaPRS_blend_overlap(subpheno, subpheno_other, blendingFactors, rho = 0)
+shaPRS_blend_overlap(proximal, adjunct, blendingFactors, rho = 0)
 }
 \arguments{
-\item{subpheno}{Subphenotype LDPred formatted GWAS summary statistics table  that has header with the following columns: chr    pos    SNP    A1    A2    Freq1.Hapmap    b    se    p    N}
+\item{proximal}{Proximal LDPred formatted GWAS summary statistics table  that has header with the following columns: chr    pos    SNP    A1    A2    Freq1.Hapmap    b    se    p    N}
 
-\item{subpheno_other}{dataframe for other subpheno of the same signature}
+\item{adjunct}{dataframe for adjunct dataset of the same signature}
 
 \item{blendingFactors}{a 3 column table of: SNP lFDR Qval, (produced by shaPRS_adjust)}
 
-\item{rho}{(optional) overlap between studies}
+\item{rho}{(optional) sample overlap between studies}
 }
 \value{
 returns an LDPred formatted summary statistics table
@@ -23,12 +23,12 @@ This function continuously blends the two sub-phenotype statistics
 and generates an LDPred formatted table.
 }
 \examples{
-subphenoLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
-subpheno_otherLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
+proximalLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+adjunctLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
 blendFactorLoc <- system.file("extdata", "myOutput_SNP_lFDR", package = "shaPRS")
-subpheno= read.table(subphenoLoc, header = TRUE)
-subpheno_other= read.table(subpheno_otherLoc, header = TRUE)
+proximal= read.table(proximalLoc, header = TRUE)
+adjunct= read.table(adjunctLoc, header = TRUE)
 blendingFactors= read.table(blendFactorLoc, header = TRUE)
-blendedSumstats = shaPRS_blend_overlap(subpheno, subpheno_other, blendingFactors)
+blendedSumstats = shaPRS_blend_overlap(proximal, adjunct, blendingFactors)
 
 }
