@@ -8,6 +8,7 @@
 #' @param inputData summary statistics table that has header with the following columns: SNP	CHR	BP	Beta_A	SE_A	A1.x	A2.x	Beta_B	SE_B	A1.y	A2.y
 #' @param rho estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()
 #' @param thresholds vector of thresholds to be used to create list of SNPs (default empty)
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
 #' @return returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 #'
 #' @importFrom stats na.omit pchisq pnorm cor
@@ -18,7 +19,7 @@
 #' results = shaPRS_adjust(inputData, thresholds=c(0.5,0.99))
 #'
 #' @export
-shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
+shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector(), discardAmbiguousSNPs = T) {
 
   # remove non numeric data from cols that must be numeric (must cast to 'characer' otherwise R may turn a value eg 0.8249 into a large integer like 8150 on nix systems)
   inputData <- inputData[!is.na(as.numeric(as.character(inputData$SE_A))),]
@@ -31,7 +32,7 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector()) {
   inputData$Beta_A = as.numeric(as.character(inputData$Beta_A ))
   inputData$Beta_B = as.numeric(as.character(inputData$Beta_B ))
 
-  inputData = alignStrands(inputData)
+  inputData = alignStrands(inputData, discardAmbiguousSNPs)
 
 
   # 0. Reverse effect sizes alleles
@@ -92,27 +93,36 @@ flipStrand = function(alleles) {
 #'
 #'
 #' @param inputData dataframe of both studies with columns:  A1.x, A2.x, A1.y, A2.y
-#' @param A1.x column for A1 allele in study 1
-#' @param A2.x column for A2 allele in study 1
-#' @param A1.y column for A1 allele in study 2
-#' @param A2.y column for A1 allele in study 2
+#' @param A1.x (optional) column name for A1 allele in study 1 (default "A1.x")
+#' @param A2.x (optional) column name for A2 allele in study 1 (default "A2.x")
+#' @param A1.y (optional) column name for A1 allele in study 2 (default "A1.y")
+#' @param A2.y (optional) column name for A1 allele in study 2 (default "A2.y")
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
 #' @return returns real value of the approximate correlation
 #'
 #'
 #' @export
-alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.y ="A2.y") {
+alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.y ="A2.y", discardAmbiguousSNPs = T) {
 
   # exclude ambiguous SNPs
-  ambiguousSNPIndices = which(inputData[,A1.x] == "G" & inputData[,A2.x] == "C" |  inputData[,A1.x] == "C" & inputData[,A2.x] == "G" | inputData[,A1.x] == "A" & inputData[,A2.x] == "T"  | inputData[,A1.x == "T"] &  inputData[,A2.x] ==  "A" |
-                              inputData[,A1.y] == "G" & inputData[,A2.y ]== "C" |  inputData[,A1.y] == "C" & inputData[,A2.y] == "G" | inputData[,A1.y] == "A" & inputData[,A2.y] == "T"  | inputData[,A1.y == "T"] &  inputData[,A2.y] ==  "A")
+  if(discardAmbiguousSNPs) {
+    print("Ambiguous SNP (G/C and A/T) filter enabled. This can be changed by setting discardAmbiguousSNPs to FALSE.")
 
-  print(paste0("removed ", length(ambiguousSNPIndices), " ambiguous SNPs out of ", nrow(inputData), " variants"))
-  if(length(ambiguousSNPIndices) > 0) inputData = inputData[-ambiguousSNPIndices,] # otherwise R would remove all as R is shit
+    ambiguousSNPIndices = which(inputData[,A1.x] == "G" & inputData[,A2.x] == "C" |  inputData[,A1.x] == "C" & inputData[,A2.x] == "G" | inputData[,A1.x] == "A" & inputData[,A2.x] == "T"  | inputData[,A1.x == "T"] &  inputData[,A2.x] ==  "A" |
+                                inputData[,A1.y] == "G" & inputData[,A2.y ]== "C" |  inputData[,A1.y] == "C" & inputData[,A2.y] == "G" | inputData[,A1.y] == "A" & inputData[,A2.y] == "T"  | inputData[,A1.y == "T"] &  inputData[,A2.y] ==  "A")
 
-  # 0. Reverse strands: (this assumes that ambigous SNPs have been excluded prior to this)
-  # cache flipped strands for phenoB
-  inputData$A1.y_flipped =  flipStrand(inputData[,A1.y])
-  inputData$A2.y_flipped =  flipStrand(inputData[,A2.y])
+    print(paste0("removed ", length(ambiguousSNPIndices), " ambiguous SNPs out of ", nrow(inputData), " variants"))
+    if(length(ambiguousSNPIndices) > 0) inputData = inputData[-ambiguousSNPIndices,] # otherwise R would remove all as R is shit
+
+    # 0. Reverse strands: (this assumes that ambigous SNPs have been excluded prior to this)
+    # cache flipped strands for phenoB
+    inputData$A1.y_flipped =  flipStrand(inputData[,A1.y])
+    inputData$A2.y_flipped =  flipStrand(inputData[,A2.y])
+
+    } else {
+    print("Ambiguous SNP (G/C and A/T) filter disabled. This can be changed by setting discardAmbiguousSNPs to TRUE.")
+  }
+
   # if 2nd sumstats CAN be matched to 1st, IE
   #                                                                                 regular match                                                                                                                         reverse match                                                                                                    flipped match                                                                                                    reverse flipped match
   matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |
@@ -151,6 +161,7 @@ alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.
 #' @param adjunct dataframe for adjunct dataset of the same signature
 #' @param blendingFactors a 3 column table of: SNP lFDR Qval, (produced by shaPRS_adjust)
 #' @param rho (optional) sample overlap between studies
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
 #' @return returns an LDPred formatted summary statistics table
 #'
 #' @importFrom stats na.omit pchisq pnorm cor
@@ -165,7 +176,7 @@ alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.
 #' blendedSumstats = shaPRS_blend_overlap(proximal, adjunct, blendingFactors)
 #'
 #' @export
-shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0) {
+shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0, discardAmbiguousSNPs = T) {
   # cast as numeric
   proximal = RemoveNonNumerics(proximal)
   adjunct = RemoveNonNumerics(adjunct)
@@ -175,7 +186,7 @@ shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0) {
   adjunctPheno_blending = merge(adjunctPheno,blendingFactors, by.x = "SNP", by.y = "SNP")
 
 
-  adjunctPheno_blending = alignStrands(adjunctPheno_blending)
+  adjunctPheno_blending = alignStrands(adjunctPheno_blending, discardAmbiguousSNPs)
 
   # 2. Align PheB/B alleles
   misalignedAlleleIndices = which( as.character(adjunctPheno_blending$A1.x) != as.character(adjunctPheno_blending$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
@@ -260,11 +271,12 @@ shaPRS_rho = function(nkl0,nk1, nk0, nl1,nl0) {
 #' @param proximal dataframe for main proximal
 #' @param adjunct dataframe for other proximal
 #' @param rho (optional) overlap between studies
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
 #' @return returns Combinedpheno dataframe that can be plugged into shaPRS_blend or shaPRS_composite
 #'
 #'
 #' @export
-inverse_metaAnalaysis = function(proximal,adjunct, rho = 0) {
+inverse_metaAnalaysis = function(proximal,adjunct, rho = 0, discardAmbiguousSNPs = T) {
 
   # cast as numeric
   proximal = RemoveNonNumerics(proximal)
@@ -274,7 +286,7 @@ inverse_metaAnalaysis = function(proximal,adjunct, rho = 0) {
   proximal_adjunct = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")
 
 
-  proximal_adjunct = alignStrands(proximal_adjunct)
+  proximal_adjunct = alignStrands(proximal_adjunct, discardAmbiguousSNPs)
 
   # 2. Align PheB/B alleles
   misalignedAlleleIndices = which( as.character(proximal_adjunct$A1.x) != as.character(proximal_adjunct$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
