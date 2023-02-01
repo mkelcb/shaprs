@@ -4,7 +4,12 @@
 \alias{shaPRS_adjust}
 \title{Create lFDR corrected Q-test statistics for each SNP}
 \usage{
-shaPRS_adjust(inputData, rho = 0, thresholds = vector())
+shaPRS_adjust(
+  inputData,
+  rho = 0,
+  thresholds = vector(),
+  discardAmbiguousSNPs = T
+)
 }
 \arguments{
 \item{inputData}{summary statistics table that has header with the following columns: SNP    CHR    BP    Beta_A    SE_A    A1.x    A2.x    Beta_B    SE_B    A1.y    A2.y}
@@ -12,6 +17,8 @@ shaPRS_adjust(inputData, rho = 0, thresholds = vector())
 \item{rho}{estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()}
 
 \item{thresholds}{vector of thresholds to be used to create list of SNPs (default empty)}
+
+\item{discardAmbiguousSNPs}{(optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)}
 }
 \value{
 returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold

@@ -4,7 +4,7 @@
 \alias{inverse_metaAnalaysis}
 \title{Generic inverse variance meta analysis}
 \usage{
-inverse_metaAnalaysis(proximal, adjunct, rho = 0)
+inverse_metaAnalaysis(proximal, adjunct, rho = 0, discardAmbiguousSNPs = T)
 }
 \arguments{
 \item{proximal}{dataframe for main proximal}
@@ -12,6 +12,8 @@ inverse_metaAnalaysis(proximal, adjunct, rho = 0)
 \item{adjunct}{dataframe for other proximal}
 
 \item{rho}{(optional) overlap between studies}
+
+\item{discardAmbiguousSNPs}{(optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)}
 }
 \value{
 returns Combinedpheno dataframe that can be plugged into shaPRS_blend or shaPRS_composite

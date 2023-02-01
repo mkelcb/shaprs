@@ -8,33 +8,17 @@ install_github("mkelcb/shaprs")
 library("shaPRS")
 ```
 
-## Step 1: adjust your summary statistics, run:
+## To find the shaPRS weighted meta-analysis of a proximal and adjunct data, simply run:
 ``` R
-inputDataLoc <- system.file("extdata", "shapersToydata.txt", package = "shaPRS")
-inputData= read.table(inputDataLoc, header = T)
-results = shaPRS_adjust(inputData)
+proximalLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+adjunctLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
+shaPRS(proximalLoc, adjunctLoc, "<YOUR_OUTPUT_FOLDER>")
 ``` 
-
-- the results object will have a table,'lFDRTable', which provides the lFDR estimates and Q-values for each SNP. 
-
-
-## Step 2: Blend summary statistics, run:
-``` R
-subphenoLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
-subpheno_otherLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
-blendFactorLoc <- system.file("extdata", "myOutput_SNP_lFDR", package = "shaPRS")
-subpheno= read.table(subphenoLoc, header = TRUE)
-subpheno_other= read.table(subpheno_otherLoc, header = TRUE)
-blendingFactors= read.table(blendFactorLoc, header = TRUE)
-blendedSumstats = shaPRS_blend_overlap(subpheno, subpheno_other, blendingFactors)
-```
-
-- 'blendedSumstats' is a summary statistics dataframe with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
-
-That's it. You may now then use this in your favourite PRS generation tool. 
+- This will output your final summary statistics file with the postfix "_shaprs" that you may use in your favourite PRS generation tool. 
+- The above will also output a few other files that may be of interest: "_meta"  (fixed fixed effect meta-analysis) and "_SNP_lFDR" (lFDR estimates and Q-values for each SNP). 
 
 
-## Step 3: Blend LD ref matrices (optional):
+## Blend LD ref matrices (optional):
 
 ``` R
 sumstatsData = readRDS(file = system.file("extdata", "sumstatsData_toy.rds", package = "shaPRS") )

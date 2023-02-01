@@ -9,19 +9,22 @@ alignStrands(
   A1.x = "A1.x",
   A2.x = "A2.x",
   A1.y = "A1.y",
-  A2.y = "A2.y"
+  A2.y = "A2.y",
+  discardAmbiguousSNPs = T
 )
 }
 \arguments{
 \item{inputData}{dataframe of both studies with columns:  A1.x, A2.x, A1.y, A2.y}
 
-\item{A1.x}{column for A1 allele in study 1}
+\item{A1.x}{(optional) column name for A1 allele in study 1 (default "A1.x")}
 
-\item{A2.x}{column for A2 allele in study 1}
+\item{A2.x}{(optional) column name for A2 allele in study 1 (default "A2.x")}
 
-\item{A1.y}{column for A1 allele in study 2}
+\item{A1.y}{(optional) column name for A1 allele in study 2 (default "A1.y")}
 
-\item{A2.y}{column for A1 allele in study 2}
+\item{A2.y}{(optional) column name for A1 allele in study 2 (default "A2.y")}
+
+\item{discardAmbiguousSNPs}{(optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)}
 }
 \value{
 returns real value of the approximate correlation

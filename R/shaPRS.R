@@ -1,3 +1,98 @@
+#' Creates a new set of summary statistics
+#'
+#' it performs both steps of the shaPRS method in a single call:
+#' (1) Creates lFDR corrected Q-test statistics for each SNP (via shaPRS_adjust)
+#' (2) produce summary statistics according to a continuous weighting scheme (via shaPRS_blend_overlap)
+#'
+#' @param proximalLoc proximal LDPred formatted GWAS summary statistics table  that has header with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
+#' @param adjunctLoc dataframe for adjunct dataset of the same signature
+#' @param outputLoc the location of the output files
+#' @param rho estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
+#' @param useProximalForMissing (optional) if SNPs missing from the adjunct data should be kept using the proximal data or not (default TRUE)
+#' @return returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
+#'
+#' @importFrom stats na.omit pchisq pnorm cor
+#' @importFrom utils read.table write.table
+#'
+#' @examples
+#' proximalLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
+#' adjunctLoc <- system.file("extdata", "phenoB_sumstats", package = "shaPRS")
+#' shaPRS(proximalLoc, adjunctLoc, tempfile())
+#'
+#' @export
+shaPRS = function(proximalLoc, adjunctLoc, outputLoc, rho = 0, discardAmbiguousSNPs = T, useProximalForMissing = T) {
+
+  # load proximal and adjunct datas
+  proximal= read.table(proximalLoc, header = T)
+  adjunct= read.table(adjunctLoc, header = T)
+
+  # Create input file for blending factors step with following format:
+  # SNP	CHR	BP	Beta_A	SE_A  A1.x  A2.x	Beta_B	SE_B  A1.y  A2.y
+  inputData = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")[,c(1,2,3,7,8,4,5  ,16,17,13,14)]
+  colnames(inputData) = c("SNP",	"CHR",	"BP",	"Beta_A",	"SE_A",  "A1.x",  "A2.x",	"Beta_B",	"SE_B",  "A1.y",  "A2.y")
+  inputDataLoc = paste0(outputLoc,"adjustinput")
+  # write to disk
+  write.table(inputData, inputDataLoc, row.names = F, col.names = T, quote = FALSE)
+
+  # I) Generate blending factors
+  # 1. load data
+  # inputData= read.table(inputDataLoc, header = T)
+
+  # 2. lFDR estimation
+  results = shaPRS_adjust(inputData, rho = rho, discardAmbiguousSNPs =discardAmbiguousSNPs)
+
+  # 3. write out a table of lFDR values for each SNP
+  lFDRTable <- results$lFDRTable
+  colnames(lFDRTable) = c("SNP", "lFDR", "Qval")
+  blendFactorLoc = paste(outputLoc, "_SNP_lFDR" , sep="")
+  write.table(lFDRTable, blendFactorLoc, row.names = F, col.names = T, quote = FALSE)
+  print(paste("written lFDRs and Qvals for SNPs to",blendFactorLoc))
+
+  # II) produce final summary statistics
+
+  # INVERSE VARIANCE FIXED EFFECT META ANALYSIS:
+  CombinedPheno = inverse_metaAnalaysis(proximal, adjunct, rho = rho, discardAmbiguousSNPs =discardAmbiguousSNPs)
+
+  blendingFactors= read.table(blendFactorLoc, header = T)
+
+  # 4. create new data frame to store the new summary stats
+  blendedSumstats = shaPRS_blend_overlap(proximal, adjunct, blendingFactors,rho, discardAmbiguousSNPs =discardAmbiguousSNPs)
+
+  # if enabled, we fill in SNPs that were missing from the adjunct data from the proximal study
+  if(useProximalForMissing) {
+
+    # find IDs of missing SNPs that only exist in proximal
+    allIDs = 1:nrow(proximal)
+    nonMissingSNPs = match(blendedSumstats$SNP, proximal$SNP)
+
+    missingIDs = allIDs[-nonMissingSNPs]
+
+    if( length(missingIDs) > 0) {
+      # extract these
+      missingProximal = proximal[missingIDs,]
+
+      # concat them into both shaPRS and meta
+      blendedSumstats = rbind(blendedSumstats,missingProximal)
+      CombinedPheno = rbind(CombinedPheno,missingProximal)
+    }
+
+  }
+
+  # 5. write blended stats to disk
+  filen=paste0(outputLoc,"_shaprs")
+  write.table(blendedSumstats, filen, sep = "\t", row.names = F, col.names = T, quote = FALSE)
+  print(paste("written shaPRS sumstats to",filen))
+  uga= read.table(filen, header = T)
+
+  # 6. write Combined stats to disk too
+  filen=paste0(outputLoc,"_meta")
+  write.table(CombinedPheno, filen, sep = "\t", row.names = F, col.names = T, quote = FALSE)
+  print(paste("written meta-analysis sumstats to",filen))
+
+}
+
+
 #' Create lFDR corrected Q-test statistics for each SNP
 #'
 #' it performs:
@@ -32,7 +127,7 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector(), discardAmbi
   inputData$Beta_A = as.numeric(as.character(inputData$Beta_A ))
   inputData$Beta_B = as.numeric(as.character(inputData$Beta_B ))
 
-  inputData = alignStrands(inputData, discardAmbiguousSNPs)
+  inputData = alignStrands(inputData, discardAmbiguousSNPs = discardAmbiguousSNPs)
 
 
   # 0. Reverse effect sizes alleles
@@ -71,7 +166,9 @@ shaPRS_adjust = function(inputData, rho = 0, thresholds =  vector(), discardAmbi
 }
 
 
+
 #alleles = c("G", "G","C","G")
+#switches As with Ts, and Gs with Cs (and vica versa)
 flipStrand = function(alleles) {
   allelesFlipped = alleles
   whereAsare = which(alleles == "A")
@@ -104,31 +201,50 @@ flipStrand = function(alleles) {
 #' @export
 alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.y ="A2.y", discardAmbiguousSNPs = T) {
 
+  #flipSNPs=F
   # exclude ambiguous SNPs
   if(discardAmbiguousSNPs) {
     print("Ambiguous SNP (G/C and A/T) filter enabled. This can be changed by setting discardAmbiguousSNPs to FALSE.")
 
-    ambiguousSNPIndices = which(inputData[,A1.x] == "G" & inputData[,A2.x] == "C" |  inputData[,A1.x] == "C" & inputData[,A2.x] == "G" | inputData[,A1.x] == "A" & inputData[,A2.x] == "T"  | inputData[,A1.x == "T"] &  inputData[,A2.x] ==  "A" |
-                                inputData[,A1.y] == "G" & inputData[,A2.y ]== "C" |  inputData[,A1.y] == "C" & inputData[,A2.y] == "G" | inputData[,A1.y] == "A" & inputData[,A2.y] == "T"  | inputData[,A1.y == "T"] &  inputData[,A2.y] ==  "A")
+    ambiguousSNPIndices = which(inputData[,A1.x] == "G" & inputData[,A2.x] == "C" |  inputData[,A1.x] == "C" & inputData[,A2.x] == "G" | inputData[,A1.x] == "A" & inputData[,A2.x] == "T"  | inputData[,A1.x] == "T" &  inputData[,A2.x] ==  "A" |
+                                inputData[,A1.y] == "G" & inputData[,A2.y ]== "C" |  inputData[,A1.y] == "C" & inputData[,A2.y] == "G" | inputData[,A1.y] == "A" & inputData[,A2.y] == "T"  | inputData[,A1.y] == "T" &  inputData[,A2.y] ==  "A")
 
     print(paste0("removed ", length(ambiguousSNPIndices), " ambiguous SNPs out of ", nrow(inputData), " variants"))
     if(length(ambiguousSNPIndices) > 0) inputData = inputData[-ambiguousSNPIndices,] # otherwise R would remove all as R is shit
 
-    # 0. Reverse strands: (this assumes that ambigous SNPs have been excluded prior to this)
+    # 0. Reverse strands: (this assumes that ambiguous SNPs have been excluded prior to this, as it only makes sense to try to match via flipped strands if we can be sure that the flipped strands don't match because of the ambiguity itself)
     # cache flipped strands for phenoB
     inputData$A1.y_flipped =  flipStrand(inputData[,A1.y])
     inputData$A2.y_flipped =  flipStrand(inputData[,A2.y])
+    #flipSNPs = T # take note that we will need to flip SNPs
+
+
+    flippedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped) | as.character(inputData[,A1.x]) == as.character(inputData$A2.y_flipped) & as.character(inputData[,A2.x]) ==  as.character(inputData$A1.y_flipped) )
+    # print( head(inputData[flippedIndices,]) )
+
+    print(paste0("flipped strand for ", length(flippedIndices), " variants"))
+    inputData[flippedIndices,A1.y] = as.character(inputData$A1.y_flipped[flippedIndices])
+    inputData[flippedIndices,A2.y] = as.character(inputData$A2.y_flipped[flippedIndices])
+
+    #                                                                                 regular match                                                                                                                         reverse match                                                                                                    flipped match                                                                                                    reverse flipped match
+    # matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |
+    #                          as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y]) |
+    #                          as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped)  |
+    #                          as.character( inputData[,A1.x]) == as.character(inputData$A2.y_flipped) &  as.character(inputData[,A2.x]) == as.character(inputData$A1.y_flipped) )
 
     } else {
     print("Ambiguous SNP (G/C and A/T) filter disabled. This can be changed by setting discardAmbiguousSNPs to TRUE.")
-  }
 
-  # if 2nd sumstats CAN be matched to 1st, IE
-  #                                                                                 regular match                                                                                                                         reverse match                                                                                                    flipped match                                                                                                    reverse flipped match
+      # here we only match against the original strands, not the flipped one
+      # matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |
+      #                          as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y])  )
+
+    }
+  # this will work for both forward and reverse strands now, as if we enabled flipping above then A1.y matches the A1.y_flipped now, so we only need to check
   matchedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData[,A1.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A2.y]) |
-                         as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y]) |
-                         as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped)  |
-                         as.character( inputData[,A1.x]) == as.character(inputData$A2.y_flipped) &  as.character(inputData[,A2.x]) == as.character(inputData$A1.y_flipped) )
+                           as.character(inputData[,A1.x]) == as.character(inputData[,A2.y]) & as.character(inputData[,A2.x]) == as.character(inputData[,A1.y])  )
+
+
   print(paste0("matched ", length(matchedIndices), " out of ", nrow(inputData), " variants"))
   # as there may be non-SNPs, we need to cast them as character
 
@@ -137,16 +253,16 @@ alignStrands = function(inputData, A1.x ="A1.x", A2.x ="A2.x", A1.y ="A1.y", A2.
   inputData = inputData[matchedIndices,]
   #inputData = inputData_orig
 
-
-  # flip those A1/A2s which were flipped matches
-  #                                                                                       flipped match                                                                                                                                reverse flipped match
-  flippedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped) | as.character(inputData[,A1.x]) == as.character(inputData$A2.y_flipped) & as.character(inputData[,A2.x]) ==  as.character(inputData$A1.y_flipped) )
- # print( head(inputData[flippedIndices,]) )
-
-  print(paste0("flipped strand for ", length(flippedIndices), " variants"))
-  inputData[flippedIndices,A1.y] = as.character(inputData$A1.y_flipped[flippedIndices])
-  inputData[flippedIndices,A2.y] = as.character(inputData$A2.y_flipped[flippedIndices])
-
+  # if(flipSNPs) {
+  #   # flip those A1/A2s which were flipped matches
+  #   #                                                                                       flipped match                                                                                                                                reverse flipped match
+  #   flippedIndices = which(as.character(inputData[,A1.x]) == as.character(inputData$A1.y_flipped) & as.character(inputData[,A2.x]) == as.character(inputData$A2.y_flipped) | as.character(inputData[,A1.x]) == as.character(inputData$A2.y_flipped) & as.character(inputData[,A2.x]) ==  as.character(inputData$A1.y_flipped) )
+  #  # print( head(inputData[flippedIndices,]) )
+  #
+  #   print(paste0("flipped strand for ", length(flippedIndices), " variants"))
+  #   inputData[flippedIndices,A1.y] = as.character(inputData$A1.y_flipped[flippedIndices])
+  #   inputData[flippedIndices,A2.y] = as.character(inputData$A2.y_flipped[flippedIndices])
+  # }
   return(inputData)
 }
 
@@ -186,7 +302,7 @@ shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0, dis
   adjunctPheno_blending = merge(adjunctPheno,blendingFactors, by.x = "SNP", by.y = "SNP")
 
 
-  adjunctPheno_blending = alignStrands(adjunctPheno_blending, discardAmbiguousSNPs)
+  adjunctPheno_blending = alignStrands(adjunctPheno_blending, discardAmbiguousSNPs = discardAmbiguousSNPs)
 
   # 2. Align PheB/B alleles
   misalignedAlleleIndices = which( as.character(adjunctPheno_blending$A1.x) != as.character(adjunctPheno_blending$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
@@ -227,7 +343,7 @@ shaPRS_blend_overlap = function(proximal, adjunct, blendingFactors, rho = 0, dis
                                blendedBeta,
                                blendedSE,
                                blendedp,
-                               round(adjunctPheno_blending$N.x * (1-adjunctPheno_blending$lFDR) + CombinedN * adjunctPheno_blending$lFDR)
+                               round(adjunctPheno_blending$N.x * (1-adjunctPheno_blending$lFDR) + CombinedN * adjunctPheno_blending$lFDR * (1-rho))
   )
   colnames(blendedSumstats) = colnames(proximal)
   blendedSumstats= blendedSumstats[match(proximal$SNP, blendedSumstats$SNP),]
@@ -286,7 +402,7 @@ inverse_metaAnalaysis = function(proximal,adjunct, rho = 0, discardAmbiguousSNPs
   proximal_adjunct = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")
 
 
-  proximal_adjunct = alignStrands(proximal_adjunct, discardAmbiguousSNPs)
+  proximal_adjunct = alignStrands(proximal_adjunct, discardAmbiguousSNPs = discardAmbiguousSNPs)
 
   # 2. Align PheB/B alleles
   misalignedAlleleIndices = which( as.character(proximal_adjunct$A1.x) != as.character(proximal_adjunct$A1.y) ) # compare as character, as if we have non-SNPs with different alleles factors will break
@@ -444,7 +560,7 @@ LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
   tauB2 = 1/sumstatsData$SE_B^2 # tauB2 is SNP_B's study 2 precision
 
   ## build covariance matrix
-  r1 = convertDSCToDense(pop1LDmatrix) # LD between SNPA and SNPB in study (population) 1 # must convert to dense otherwise will get memory error later
+  r1 = convertDSCToDense(pop1LDmatrix, numparts = 5) # LD between SNPA and SNPB in study (population) 1 # must convert to dense otherwise will get memory error later
   prodA=(tauA1 + wA*tauA2)/(tauA1 + tauA2)/sqrt(tauA1) # vector of 5, IE pre-calculating all for all 'A' and all 'B; SNPs, all terms
   prodB=(tauB1 + wB*tauB2)/(tauB1 + tauB2)/sqrt(tauB1) # vector of 5
   # mat of 5x5, an outer product of A and B, IE make it the same dim as the LD matrix, IE the outer product expands out and performs all calculations in the loop in one go
@@ -462,7 +578,7 @@ LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
   flippedMat=outer(flipped_mask,flipped_mask,"*")  # create a matrix that can be used to flip correlations via elementwise multiplications
 
 
-  r2 = convertDSCToDense(pop2LDmatrix) # LD between SNPA and SNPB in study (population) 2
+  r2 = convertDSCToDense(pop2LDmatrix, numparts = 5) # LD between SNPA and SNPB in study (population) 2
   r2 = r2 * flippedMat # apply the flipping to the second LD mat
   remove(flippedMat) # free up RAM
 

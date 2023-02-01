@@ -4,7 +4,13 @@
 \alias{shaPRS_blend_overlap}
 \title{Blended shaPRS (with overlapping datasets): produce summary statistics according to a continuous weighting scheme}
 \usage{
-shaPRS_blend_overlap(proximal, adjunct, blendingFactors, rho = 0)
+shaPRS_blend_overlap(
+  proximal,
+  adjunct,
+  blendingFactors,
+  rho = 0,
+  discardAmbiguousSNPs = T
+)
 }
 \arguments{
 \item{proximal}{Proximal LDPred formatted GWAS summary statistics table  that has header with the following columns: chr    pos    SNP    A1    A2    Freq1.Hapmap    b    se    p    N}
@@ -14,6 +20,8 @@ shaPRS_blend_overlap(proximal, adjunct, blendingFactors, rho = 0)
 \item{blendingFactors}{a 3 column table of: SNP lFDR Qval, (produced by shaPRS_adjust)}
 
 \item{rho}{(optional) sample overlap between studies}
+
+\item{discardAmbiguousSNPs}{(optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)}
 }
 \value{
 returns an LDPred formatted summary statistics table
