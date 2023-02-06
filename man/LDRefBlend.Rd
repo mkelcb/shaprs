@@ -2,9 +2,9 @@
 % Please edit documentation in R/shaPRS.R
 \name{LDRefBlend}
 \alias{LDRefBlend}
-\title{Generate shaPRS specific LD refernece panel}
+\title{Generate shaPRS specific LD reference panel}
 \usage{
-LDRefBlend(pop1LDmatrix, pop2LDmatrix, sumstatsData)
+LDRefBlend(pop1LDmatrix, pop2LDmatrix, sumstatsData, memoryEfficiency = 5)
 }
 \arguments{
 \item{pop1LDmatrix}{LD reference matrix in RDS (dsCMatrix) format for target population}
@@ -12,6 +12,8 @@ LDRefBlend(pop1LDmatrix, pop2LDmatrix, sumstatsData)
 \item{pop2LDmatrix}{LD reference matrix in RDS (dsCMatrix) format for other population}
 
 \item{sumstatsData}{summary data with required columns of SE_A, SE_B, A1.x, A1.y, and lFDR}
+
+\item{memoryEfficiency}{larger numbers result in longer runs but lower memory usage (default 5)}
 }
 \value{
 returns a PRS specific LD matrix
@@ -23,7 +25,7 @@ shaPRS produced lFDR and standard errors
 \examples{
 sumstatsData = readRDS(file = system.file("extdata", "sumstatsData_toy.rds", package = "shaPRS") )
 
-# read SNP map files ( same toy data for the example)
+# read SNP map files (same toy data for the example)
 pop1_map_rds = readRDS(file = system.file("extdata", "my_data.rds", package = "shaPRS") )
 pop2_map_rds = readRDS(file = system.file("extdata", "my_data2.rds", package = "shaPRS") )
 
@@ -36,7 +38,7 @@ pop2LDmatrix = readRDS(file = system.file("extdata", "LDref2.rds", package = "sh
 
 
 # 2. grab the RSids from the map for the SNPS on this chrom,
-# each LD mat has a potentiall different subset of SNPs
+# each LD mat has a potentially different subset of SNPs
 # this is guaranteed to be the same order as the pop1LDmatrix
 pop1_chrom_SNPs = pop1_map_rds[ which(pop1_map_rds$chr == chromNum),]
 # this is guaranteed to be the same order as the pop2LDmatrix
@@ -74,7 +76,7 @@ sumstatsData$A1.y =sumstatsData$a1.y
 sumstatsData = sumstatsData[order(sumstatsData$pop1_id), ]
 # it doesn't matter which matrix to use to order the sumstats as they are the same
 
-# subset the LD matrices to the SNPs we actualy have
+# subset the LD matrices to the SNPs we actually have
 pop1LDmatrix = pop1LDmatrix[sumstatsData$pop1_id,sumstatsData$pop1_id]
 pop2LDmatrix = pop2LDmatrix[sumstatsData$pop2_id,sumstatsData$pop2_id]
 
@@ -89,6 +91,6 @@ map_rds_new2 = map_rds_new[which(map_rds_new$rsid \%in\% sumstatsData$rsid),]
 # saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
 
 # save its Map file too
-#saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
+# saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
 
 }

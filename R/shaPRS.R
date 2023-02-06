@@ -3,6 +3,7 @@
 #' it performs both steps of the shaPRS method in a single call:
 #' (1) Creates lFDR corrected Q-test statistics for each SNP (via shaPRS_adjust)
 #' (2) produce summary statistics according to a continuous weighting scheme (via shaPRS_blend_overlap)
+#' (3) It writes to disk the following files with postfixes:   "_adjustinput", "_SNP_lFDR", "_shaprs", "_meta", which are the input and output for shaPRS_adjust (also required for shaPRS_LDGen), and shaPRS adjusted summary stats and a fixed-effect meta-analysis
 #'
 #' @param proximalLoc proximal LDPred formatted GWAS summary statistics table  that has header with the following columns: chr	pos	SNP	A1	A2	Freq1.Hapmap	b	se	p	N
 #' @param adjunctLoc dataframe for adjunct dataset of the same signature
@@ -10,7 +11,6 @@
 #' @param rho estimate of correlation between studies due to shared subjects. 0 for no overlap and 1 for complete overlap. default: 0. Obtain this from shaPRS_rho()
 #' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
 #' @param useProximalForMissing (optional) if SNPs missing from the adjunct data should be kept using the proximal data or not (default TRUE)
-#' @return returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
 #'
 #' @importFrom stats na.omit pchisq pnorm cor
 #' @importFrom utils read.table write.table
@@ -31,7 +31,7 @@ shaPRS = function(proximalLoc, adjunctLoc, outputLoc, rho = 0, discardAmbiguousS
   # SNP	CHR	BP	Beta_A	SE_A  A1.x  A2.x	Beta_B	SE_B  A1.y  A2.y
   inputData = merge(proximal,adjunct,by.x = "SNP",by.y = "SNP")[,c(1,2,3,7,8,4,5  ,16,17,13,14)]
   colnames(inputData) = c("SNP",	"CHR",	"BP",	"Beta_A",	"SE_A",  "A1.x",  "A2.x",	"Beta_B",	"SE_B",  "A1.y",  "A2.y")
-  inputDataLoc = paste0(outputLoc,"adjustinput")
+  inputDataLoc = paste0(outputLoc,"_adjustinput")
   # write to disk
   write.table(inputData, inputDataLoc, row.names = F, col.names = T, quote = FALSE)
 
@@ -452,15 +452,140 @@ RemoveNonNumerics = function(proximal) {
 }
 
 
-#require(compiler)
-#enableJIT(3)
+#' Convenience function to generate a shaPRS specific LD reference panel for cross-ancestry analyses
+#'
+#' Wrapper function that loads and processes the LD data for two populations, aligns it with summary data for shaPRS and then generate a full new LD-ref panel for 22 autosomes (this should be used instead of LDRefBlend)
+#'
+#' @param Pop1LDRefLoc Location of the folder of the LDpred2 formatted LD-reference matrices for the 22 autosomes together with a map.rds file for the proximal study
+#' @param Pop2LDRefLoc Location of the folder of the LDpred2 formatted LD-reference matrices for the 22 autosomes together with a map.rds file for the adjunct study
+#' @param blendFactorLoc Location for the lFDR data file produced by shaPRS(), postfix: "_SNP_lFDR"
+#' @param adjustinputLoc Location for the file produced by the shaPRS(), postfix: "_adjustinput"
+#' @param outputLoc Output location
+#' @param discardAmbiguousSNPs (optional) if ambiguous SNPs (G/C and A/T) should be discarded (default TRUE)
+#' @param memoryEfficiency (optional) larger numbers result in longer runs but lower memory usage (default 5)
+#'
+#' @import Matrix compiler
+#' @importFrom utils read.table write.table
+#'
+#' @examples
+#' Pop1LDRefLoc <- paste0(system.file("extdata", "", package = "shaPRS"), "/")
+#' Pop2LDRefLoc <- paste0(system.file("extdata", "", package = "shaPRS"), "/")
+#' blendFactorLoc <- system.file("extdata", "pop_SNP_lFDR", package = "shaPRS")
+#' adjustinputLoc <- system.file("extdata", "pop_adjustinput", package = "shaPRS")
+#' outputLoc <- "<YOUR LOCATION>"
+#' # shaPRS_LDGen(Pop1LDRefLoc, Pop2LDRefLoc, blendFactorLoc, adjustinputLoc, outputLoc)
+#'
+#' @export
+shaPRS_LDGen = function(Pop1LDRefLoc,Pop2LDRefLoc, blendFactorLoc, adjustinputLoc, outputLoc, discardAmbiguousSNPs = F, memoryEfficiency = 5) {
 
-#library(Matrix)
-#Matrix compiler
+  # 1. load Map data
+  pop1_map_rds = readRDS(file = paste0(Pop1LDRefLoc,"map.rds") )
+  pop2_map_rds = readRDS(file = paste0(Pop2LDRefLoc,"map.rds") )
+
+  # load raw blending factors and summary stats for the entire genome
+  blendingFactors= read.table(blendFactorLoc, header = T)
+  sumsData= read.table(adjustinputLoc, header = T)
+
+  dir.create(file.path(paste0(outputLoc,"/") ), recursive = T, showWarnings = F)
+
+  # merge them
+  sumstatsDataAll =  merge(blendingFactors,sumsData,by.x = "SNP",by.y = "SNP")
+
+  # remove non numeric data
+  sumstatsDataAll <- sumstatsDataAll[!is.na(as.numeric(as.character(sumstatsDataAll$lFDR))),]
+  sumstatsDataAll <- sumstatsDataAll[!is.na(as.numeric(as.character(sumstatsDataAll$SE_A))),]
+  sumstatsDataAll <- sumstatsDataAll[!is.na(as.numeric(as.character(sumstatsDataAll$SE_B))),]
+
+  # now actually cast them to numeric
+  sumstatsDataAll$lFDR = as.numeric(as.character(sumstatsDataAll$lFDR ))
+  sumstatsDataAll$SE_A = as.numeric(as.character(sumstatsDataAll$SE_A ))
+  sumstatsDataAll$SE_B = as.numeric(as.character(sumstatsDataAll$SE_B ))
+
+  # align the summary for phe A and B
+  sumstatsDataAll = alignStrands(sumstatsDataAll, discardAmbiguousSNPs = discardAmbiguousSNPs)
+  #chromNum=21
+  # go through each chrom
+  for(chromNum in 1:22){
+    # load the two chromosomes from each population
+    pop1LDmatrix = readRDS(file = paste0(Pop1LDRefLoc,"LD_chr",chromNum,".rds") )
+    pop2LDmatrix = readRDS(file = paste0(Pop2LDRefLoc,"LD_chr",chromNum,".rds") )
+
+    # 2. grab the RSids from the map for the SNPS on this chrom, each LD mat has a potentiall different subset of SNPs
+    pop1_chrom_SNPs = pop1_map_rds[ which(pop1_map_rds$chr == chromNum),] # this is guaranteed to be the same order as the pop1LDmatrix
+    pop2_chrom_SNPs = pop2_map_rds[ which(pop2_map_rds$chr == chromNum),] # this is guaranteed to be the same order as the pop2LDmatrix
+    pop1_chrom_SNPs$pop1_id = 1:nrow(pop1_chrom_SNPs)
+    pop2_chrom_SNPs$pop2_id = 1:nrow(pop2_chrom_SNPs)
+
+    # intersect the 2 SNP lists so that we only use the ones common to both LD matrices by merging them
+    chrom_SNPs_df  <- merge(pop1_chrom_SNPs,pop2_chrom_SNPs, by = "rsid")
+
+    # align the two LD matrices
+    chrom_SNPs_df = alignStrands(chrom_SNPs_df, A1.x ="a1.x", A2.x ="a0.x", A1.y ="a1.y", A2.y ="a0.y")
+
+    # subset sumstats data to the same chrom
+    sumstatsData = sumstatsDataAll[which(sumstatsDataAll$CHR == chromNum ),]
+
+    if(nrow(sumstatsData) > 0) {
+      # merge sumstats with common LD map data
+      sumstatsData  <- merge(chrom_SNPs_df,sumstatsData, by.x="rsid", by.y = "SNP")
+
+      # remove duplicates
+      sumstatsData = sumstatsData[ !duplicated(sumstatsData$rsid) ,]
+      # use the effect alleles for the sumstats data with the effect allele of the LD mat
+      # as we are aligning the LD mats against each other, not against the summary stats
+      # we only use the lFDR /SE from the sumstats, which are directionless, so those dont need to be aligned
+      sumstatsData$A1.x =sumstatsData$a1.x
+      sumstatsData$A1.y =sumstatsData$a1.y
+
+      # make sure the sumstats is ordered the same way as the LD matrix: https://stackoverflow.com/questions/17878048/merge-two-data-frames-while-keeping-the-original-row-order
+      sumstatsData = sumstatsData[order(sumstatsData$pop1_id), ] # it doesn't matter which matrix to use to order the sumstats as they are the same
+
+
+      # subset the LD matrices to the SNPs we actualy have
+      pop1LDmatrix = pop1LDmatrix[sumstatsData$pop1_id,sumstatsData$pop1_id]
+      pop2LDmatrix = pop2LDmatrix[sumstatsData$pop2_id,sumstatsData$pop2_id]
+
+      # generate the blended LD matrix
+      cormat = LDRefBlend(pop1LDmatrix,pop2LDmatrix, sumstatsData, memoryEfficiency = memoryEfficiency)
+
+      fileLoc= paste0(outputLoc,"/LD_chr",chromNum,".rds")
+      saveRDS(cormat,file = fileLoc)
+      print(paste0("written PRS specific LD mat to ",fileLoc ))
+    } else {print(paste0("no variants on chrom", chromNum))}
+
+
+    # also need to write out the list of SNPs that made it into the final subset, as after all LD matrices are done, we need to create a map.rds too
+    write.table(sumstatsData$rsid, paste0(outputLoc,chromNum,"_snps"), sep = "\t", row.names = F, col.names = F, quote = FALSE)
+
+
+    # map the final list of SNPs back to the original map file's indices
+    map_rds_new = pop1_map_rds[which(pop1_map_rds$chr == chromNum),]
+    map_rds_new2 = map_rds_new[which(map_rds_new$rsid %in% sumstatsData$rsid),] # match the first to the second
+
+    fileLoc= paste0(outputLoc,"/LD_chr",chromNum,"_map.rds")
+    saveRDS(map_rds_new2,file = fileLoc)
+    print(paste0("written chr map to ",fileLoc ))
+
+   # mem_used()
+  }
+
+  # at the end concat all of the map files into a single file and write it to disk
+  all_map_rds = NULL
+  for(chromNum in 1:22){
+    filLoc=paste0(outputLoc,"/LD_chr",chromNum,"_map.rds")
+    chr_map_rds = readRDS(file = filLoc )
+    all_map_rds = rbind(all_map_rds,chr_map_rds)
+    file.remove(filLoc)
+  }
+
+  fileLoc= paste0(outputLoc,"/map.rds")
+  saveRDS(all_map_rds,file = fileLoc)
+  print(paste0("written overall map to ",fileLoc ))
+}
 
 
 
-#' Generate shaPRS specific LD refernece panel
+#' Generate shaPRS specific LD reference panel
 #'
 #' Generates a PRS specific LD reference matrix by blending together two LD ref panels according to
 #' shaPRS produced lFDR and standard errors
@@ -468,6 +593,7 @@ RemoveNonNumerics = function(proximal) {
 #' @param pop1LDmatrix LD reference matrix in RDS (dsCMatrix) format for target population
 #' @param pop2LDmatrix LD reference matrix in RDS (dsCMatrix) format for other population
 #' @param sumstatsData summary data with required columns of SE_A, SE_B, A1.x, A1.y, and lFDR
+#' @param memoryEfficiency larger numbers result in longer runs but lower memory usage (default 5)
 #' @return returns a PRS specific LD matrix
 #'
 #' @import Matrix compiler
@@ -475,7 +601,7 @@ RemoveNonNumerics = function(proximal) {
 #' @examples
 #' sumstatsData = readRDS(file = system.file("extdata", "sumstatsData_toy.rds", package = "shaPRS") )
 #'
-#' # read SNP map files ( same toy data for the example)
+#' # read SNP map files (same toy data for the example)
 #' pop1_map_rds = readRDS(file = system.file("extdata", "my_data.rds", package = "shaPRS") )
 #' pop2_map_rds = readRDS(file = system.file("extdata", "my_data2.rds", package = "shaPRS") )
 #'
@@ -488,7 +614,7 @@ RemoveNonNumerics = function(proximal) {
 #'
 #'
 #' # 2. grab the RSids from the map for the SNPS on this chrom,
-#' # each LD mat has a potentiall different subset of SNPs
+#' # each LD mat has a potentially different subset of SNPs
 #' # this is guaranteed to be the same order as the pop1LDmatrix
 #' pop1_chrom_SNPs = pop1_map_rds[ which(pop1_map_rds$chr == chromNum),]
 #' # this is guaranteed to be the same order as the pop2LDmatrix
@@ -526,7 +652,7 @@ RemoveNonNumerics = function(proximal) {
 #' sumstatsData = sumstatsData[order(sumstatsData$pop1_id), ]
 #' # it doesn't matter which matrix to use to order the sumstats as they are the same
 #'
-#' # subset the LD matrices to the SNPs we actualy have
+#' # subset the LD matrices to the SNPs we actually have
 #' pop1LDmatrix = pop1LDmatrix[sumstatsData$pop1_id,sumstatsData$pop1_id]
 #' pop2LDmatrix = pop2LDmatrix[sumstatsData$pop2_id,sumstatsData$pop2_id]
 #'
@@ -541,10 +667,10 @@ RemoveNonNumerics = function(proximal) {
 #' # saveRDS(cormat,file =paste0(<YOUR LOCATION>,"/LD_chr",chromNum,".rds"))
 #'
 #' # save its Map file too
-#' #saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
+#' # saveRDS(map_rds_new2,file = paste0(<YOUR LOCATION>,"/LD_chr",chromNum,"_map.rds"))
 #'
 #' @export
-LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
+LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData, memoryEfficiency = 5) {
   #library(compiler)
   enableJIT(3)
 
@@ -578,7 +704,7 @@ LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
   flippedMat=outer(flipped_mask,flipped_mask,"*")  # create a matrix that can be used to flip correlations via elementwise multiplications
 
 
-  r2 = convertDSCToDense(pop2LDmatrix, numparts = 5) # LD between SNPA and SNPB in study (population) 2
+  r2 = convertDSCToDense(pop2LDmatrix, numparts = memoryEfficiency) # LD between SNPA and SNPB in study (population) 2
   r2 = r2 * flippedMat # apply the flipping to the second LD mat
   remove(flippedMat) # free up RAM
 
@@ -615,7 +741,7 @@ LDRefBlend = function(pop1LDmatrix,pop2LDmatrix, sumstatsData) {
 #' Helper function that converts an LD from sparse DSC to Dense format, in a given number of parts (to overcome RAM limitations)
 #'
 #' @param pop1LDmatrix LD reference matrix in RDS (dsCMatrix) format for target population
-#' @param numparts (optional) how many parts should be used for converting the matrix
+#' @param numparts (optional) how many parts should be used for converting the matrix, if memory becomes an issue use higher numbers
 #' @return returns a dense LD matrix
 #'
 #' @export

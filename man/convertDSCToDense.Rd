@@ -9,7 +9,7 @@ convertDSCToDense(pop1LDmatrix, numparts = 3)
 \arguments{
 \item{pop1LDmatrix}{LD reference matrix in RDS (dsCMatrix) format for target population}
 
-\item{numparts}{(optional) how many parts should be used for converting the matrix}
+\item{numparts}{(optional) how many parts should be used for converting the matrix, if memory becomes an issue use higher numbers}
 }
 \value{
 returns a dense LD matrix

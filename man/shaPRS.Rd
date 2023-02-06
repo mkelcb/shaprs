@@ -26,13 +26,11 @@ shaPRS(
 
 \item{useProximalForMissing}{(optional) if SNPs missing from the adjunct data should be kept using the proximal data or not (default TRUE)}
 }
-\value{
-returns object with two fields, (1) lFDRTable: a 3 column file with the following signature SNP lFDR Qval (2) hardThresholds list of SNPids that failed the heterogeneity test at each threshold
-}
 \description{
 it performs both steps of the shaPRS method in a single call:
 (1) Creates lFDR corrected Q-test statistics for each SNP (via shaPRS_adjust)
 (2) produce summary statistics according to a continuous weighting scheme (via shaPRS_blend_overlap)
+(3) It writes to disk the following files with postfixes:   "_adjustinput", "_SNP_lFDR", "_shaprs", "_meta", which are the input and output for shaPRS_adjust (also required for shaPRS_LDGen), and shaPRS adjusted summary stats and a fixed-effect meta-analysis
 }
 \examples{
 proximalLoc <- system.file("extdata", "phenoA_sumstats", package = "shaPRS")
